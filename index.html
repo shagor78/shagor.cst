@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamVibe Live TV</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <style>
+        /* Modern hidden scrollbars */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #141414; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #2f2f2f; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f3f; }
+        
+        /* STRICT PLAYER FIXES FOR ALL MONITORS/SCREENS
+           Ensures player takes exact space, controls stay visible, and video never crops.
+        */
+        .player-container {
+            position: relative;
+            width: 100%;
+            background-color: #000000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        /* Forces 16:9 Aspect Ratio aspect layout across all responsive sizes */
+        @media (min-width: 1024px) {
+            .player-container {
+                height: 100%;
+                aspect-ratio: 16 / 9;
+            }
+        }
+        @media (max-width: 1023px) {
+            .player-container {
+                aspect-ratio: 16 / 9;
+            }
+        }
+
+        /* Essential Video.js fixes to prevent video cutting/cropping and keeping full controls */
+        .video-js {
+            width: 100% !important;
+            height: 100% !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+        }
+
+        /* Crucial property so video fits nicely into any screen size without cutting edges */
+        .video-js video {
+            object-fit: contain !important; 
+        }
+
+        /* Keeps the big play button looking clean and modern */
+        .vjs-big-play-centered .vjs-big-play-button { 
+            background-color: rgba(220, 38, 38, 0.8) !important; 
+            border: none !important; 
+        }
+    </style>
+</head>
+<body class="bg-[#0f0f0f] text-zinc-100 font-sans lg:h-screen flex flex-col overflow-x-hidden lg:overflow-hidden m-0 p-0">
+
+    <header class="w-full bg-[#121212] border-b border-zinc-800/80 px-4 py-2.5 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2">
+            <span class="text-red-600 text-xl animate-pulse">●</span>
+            <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
+                StreamVibe <span class="text-red-500 font-bold text-[10px] bg-red-950/40 px-1.5 py-0.5 rounded border border-red-900/50">LIVE</span>
+            </h1>
+        </div>
+        <div class="text-xs text-zinc-500 font-medium tracking-wide">
+            Premium Infrastructure Portal
+        </div>
+    </header>
+
+    <div class="w-full flex-grow grid grid-cols-1 lg:grid-cols-4 p-3 gap-4 min-h-0 items-start lg:items-stretch">
+        
+        <div class="lg:col-span-3 player-container shadow-2xl flex items-center justify-center border border-zinc-900 w-full shrink-0 z-10">
+            <div id="player-placeholder" class="text-center p-6 z-20 select-none absolute">
+                <div class="w-14 h-14 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center mx-auto mb-3 text-zinc-500">▶</div>
+                <h2 class="text-md font-semibold text-zinc-300 mb-0.5">Ready to Play Streaming Source</h2>
+                <p class="text-zinc-500 text-[11px]">Select any operational live channel from the terminal layout directory grid.</p>
+            </div>
+            
+            <div id="video-wrapper" class="absolute inset-0 hidden z-10 w-full h-full">
+                <video id="live-player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" width="auto" height="auto">
+                    <p class="vjs-no-js">To view this video please enable JavaScript</p>
+                </video>
+            </div>
+        </div>
+
+        <div class="bg-[#121212] rounded-lg border border-zinc-800/90 p-3 flex flex-col h-[500px] lg:h-full min-h-0 w-full z-20">
+            
+            <div class="bg-[#18181b] border border-zinc-800 rounded-md p-3 mb-3 shrink-0">
+                <span class="text-[10px] uppercase tracking-wider font-bold text-red-500 block mb-1">● NOW PLAYING</span>
+                <div id="current-active-channel" class="text-sm font-bold text-white truncate">
+                    No Channel Selected
+                </div>
+                <div id="current-active-category" class="text-[11px] text-zinc-500 mt-0.5">
+                    Select a network from below
+                </div>
+            </div>
+
+            <div class="relative shrink-0 mb-2.5">
+                <input type="text" id="search-box" placeholder="Search operational networks..." class="w-full bg-[#1c1c1c] border border-zinc-800 rounded-md pl-3 pr-9 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-red-600 transition-all" />
+                <span class="absolute right-3 top-2.5 text-zinc-600 text-xs">🔍</span>
+            </div>
+
+            <div class="flex gap-1 overflow-x-auto pb-2 mb-2 border-b border-zinc-800/80 custom-scrollbar text-[11px] font-medium whitespace-nowrap shrink-0">
+                <button onclick="filterCategory('All')" class="cat-btn px-3 py-1.5 rounded bg-zinc-100 text-black font-semibold cursor-pointer">All Channel</button>
+                <button onclick="filterCategory('Entertainment')" class="cat-btn px-3 py-1.5 rounded bg-[#212121] text-zinc-400 hover:bg-[#2b2b2b] cursor-pointer">Entertainment</button>
+                <button onclick="filterCategory('Sports')" class="cat-btn px-3 py-1.5 rounded bg-[#212121] text-zinc-400 hover:bg-[#2b2b2b] cursor-pointer">Sports</button>
+                <button onclick="filterCategory('News')" class="cat-btn px-3 py-1.5 rounded bg-[#212121] text-zinc-400 hover:bg-[#2b2b2b] cursor-pointer">News</button>
+                <button onclick="filterCategory('Kids')" class="cat-btn px-3 py-1.5 rounded bg-[#212121] text-zinc-400 hover:bg-[#2b2b2b] cursor-pointer">Kids</button>
+                <button onclick="filterCategory('Islamic')" class="cat-btn px-3 py-1.5 rounded bg-[#212121] text-zinc-400 hover:bg-[#2b2b2b] cursor-pointer">Islamic</button>
+                <button onclick="filterCategory('Music')" class="cat-btn px-3 py-1.5 rounded bg-[#212121] text-zinc-400 hover:bg-[#2b2b2b] cursor-pointer">Music</button>
+            </div>
+
+            <div id="channel-list" class="flex-grow overflow-y-auto custom-scrollbar space-y-1.5 pr-0.5 min-h-0 w-full">
+                </div>
+
+        </div>
+    </div>
+
+    <script>
+        let channels = [
+            // ENTERTAINMENT CATEGORY
+            { name: "Channel I", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/fD8Ln9vY/index.m3u8" },
+            { name: "ntv", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/tDpMFc38/index.m3u8" },
+            { name: "Bangla Vision", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/zk2ShaGp/index.m3u8" },
+            { name: "RTV", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/gvC5HVhg/index.m3u8" },
+            { name: "ATN Bangla", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/aNhQT9D9/index.m3u8" },
+            { name: "ETV", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/X6Y96CPq/index.m3u8" },
+            { name: "Maasranga TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/PFvra8DQ/index.m3u8" },
+            { name: "Deepto TV", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/LLJMbu4X/index.m3u8" },
+            { name: "Gazi TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/4UzmDxPY/index.m3u8" },
+            { name: "Desh TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/g8bhEyTx/index.m3u8" },
+            { name: "Boishakhi TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/h3VvnFcC/index.m3u8" },
+            { name: "Channel 9", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/s4HH773a/index.m3u8" },
+            { name: "Channel 24", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/jS3GShcy/index.m3u8" },
+            { name: "Asian TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/FYU6y6MQ/index.m3u8" },
+            { name: "SA TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/rWTr6T2Z/index.m3u8" },
+            { name: "Bangla TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/cdV3TgVr/index.m3u8" },
+            { name: "Mohona TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/tv7UhG3X/index.m3u8" },
+            { name: "NEXUS TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/DTdMMr8x/index.m3u8" },
+            { name: "Bijoy TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/B7TgxFSL/index.m3u8" },
+            { name: "Global TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/YbPUGpB5/index.m3u8" },
+            { name: "My TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/8ebrVk77/index.m3u8" },
+            { name: "Ananda TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/KA46zYtr/index.m3u8" },
+            { name: "Nagorik TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/a4P3Fw3e/index.m3u8" },
+            { name: "Green TV HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/m9r9GpJ5/index.m3u8" },
+            { name: "AKASH BANGLA TV", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/jSffZ4ja/index.m3u8" },
+            { name: "R PLUS", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/EypH2T2N/index.m3u8" },
+            { name: "Rupshi Bangla", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/PSkqp95W/index.m3u8" },
+            { name: "Zee Bangla HD DVR", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/L7mHVFZW/index.m3u8" },
+            { name: "Colors Bangla", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/eZjN2jXQ/index.m3u8" },
+            { name: "Colors HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Q4Pz3CJW/index.m3u8" },
+            { name: "Star Plus HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/tuJx392n/index.m3u8" },
+            { name: "Zee TV HD", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/Gf4sXuRB/index.m3u8" },
+            { name: "Sony TV HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/UmkR527E/index.m3u8" },
+            { name: "HBO", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Zga8m8P8/index.m3u8" },
+            { name: "HBO 2", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/u3NjUrny/index.m3u8" },
+            { name: "Star Jalsha HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/n64PH4YL/index.m3u8" },
+            { name: "Star Jalsha HD - Feed 2", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/sFpkNtZ8/index.m3u8" },
+            { name: "Colors Bangla DVR", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/LjRenUg5/index.m3u8" },
+            { name: "Colors HD DVR", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/y6NdCrSj/index.m3u8" },
+            { name: "9x Jhakaas", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/zmcc2Yy4/index.m3u8" },
+            { name: "HiDost", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/u2VhUFwF/index.m3u8" },
+            { name: "Rplus Gold", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/NWMt4Dkg/index.m3u8" },
+            { name: "9x Jalwa", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Z5zJpGcz/index.m3u8" },
+            { name: "B4U Kadak", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/X9E6bxg3/index.m3u8" },
+            { name: "Dabangg", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/cXpKEQ8U/index.m3u8" },
+            { name: "Dhamaal", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/6SzFVm9W/index.m3u8" },
+            { name: "Dhinchaak", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/8XHWxuwu/index.m3u8" },
+            { name: "Goldmines", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/VamXuQH8/index.m3u8" },
+            { name: "Goldmines Bollywood", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/E4GkhJCv/index.m3u8" },
+            { name: "Goldmines Movies", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/5CGfPvGp/index.m3u8" },
+            { name: "Khushboo", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/pXgjs57a/index.m3u8" },
+            { name: "Manoranjan TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/5DDLxcmz/index.m3u8" },
+            { name: "Network 10", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/a5WKJFvm/index.m3u8" },
+            { name: "Shemaroo TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/27jCLCUX/index.m3u8" },
+            { name: "TheQ", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/SAuhA3qq/index.m3u8" },
+            { name: "Atrangii TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/hAv6deSQ/index.m3u8" },
+            { name: "Azzad TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/cq4ZLW94/index.m3u8" },
+            { name: "Bflix", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/gR5SeC8W/index.m3u8" },
+            { name: "Dangal", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/qPNg4LJK/index.m3u8" },
+            { name: "Dangal 2", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/8KfZvBYS/index.m3u8" },
+            { name: "Rongeen TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/fSF9nn5p/index.m3u8" },
+            { name: "Shemaroo Umang", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/7SL5YUb4/index.m3u8" },
+            { name: "Afghan TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Yb7DZqpu/index.m3u8" },
+            { name: "B4U Movies India", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/vQ2N63pw/index.m3u8" },
+            { name: "Movie live", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/HT93xKLj/index.m3u8" },
+            { name: "Movie Today", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/cUc2KF9q/index.m3u8" },
+            { name: "B4U Hitz", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/ezMdArp6/index.m3u8" },
+            { name: "Dhamaka Movies", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/3hZ2UVB3/index.m3u8" },
+            { name: "Discovery Family", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/C9jmWGAs/index.m3u8" },
+            { name: "Discovery HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/UE6fvuaA/index.m3u8" },
+            { name: "EPIX TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Ah3tLAfA/index.m3u8" },
+            { name: "FX TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/jTqkTE8W/index.m3u8" },
+            { name: "Food Network", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/7hm4TfVp/index.m3u8" },
+            { name: "HGTV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Ge23xfY5/index.m3u8" },
+            { name: "HISTORY TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/np3JstRE/index.m3u8" },
+            { name: "LAFF TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/UC6a8nsf/index.m3u8" },
+            { name: "LIFE TIME", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Nan7Rdr9/index.m3u8" },
+            { name: "Nat Geo TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/7mm4pwCy/index.m3u8" },
+            { name: "SKY CINEMA ANIMATION", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/ewQ3Vu5s/index.m3u8" },
+            { name: "SYFY TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/ELmwVwS9/index.m3u8" },
+            { name: "TLC HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/EJagkNL2/index.m3u8" },
+            { name: "TNT TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/4T5fe4Sc/index.m3u8" },
+            { name: "Travel Channel", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/sFwCR6Fu/index.m3u8" },
+            { name: "IBTV USA", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/5HqW4h4q/index.m3u8" },
+            { name: "CBS TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/34fJSjZP/index.m3u8" },
+            { name: "USA TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/dbbcY6NG/index.m3u8" },
+            { name: "TIME TV USA", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/XsW58NCx/index.m3u8" },
+            { name: "Discovery Science", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Zht5VqBb/index.m3u8" },
+            { name: "Discovery Turbo", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/9tYGMmMS/index.m3u8" },
+            { name: "ID TV", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/gHJpF5S5/index.m3u8" },
+            { name: "TBS", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/WtMxcpN5/index.m3u8" },
+            { name: "Sky Nature", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/ZqkT2z6B/index.m3u8" },
+            { name: "Pixll", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/GPHeknR5/index.m3u8" },
+            { name: "Amc", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/7WVVHtK6/index.m3u8" },
+            { name: "axs", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/P2fJzfsg/index.m3u8" },
+            { name: "Pitaara TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/A2AjN5ex/index.m3u8" },
+            { name: "Movie Bangla", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/2nRW4u8L/index.m3u8" },
+            { name: "Millennium TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/NXHj9tpa/index.m3u8" },
+            { name: "NTV EUROPE", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/3Dy5B57z/index.m3u8" },
+            { name: "ATN BANGLA UK", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/67RAYB2h/index.m3u8" },
+            { name: "NANDAN TV", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/Qm6VcP5p/index.m3u8" },
+            { name: "VTV USA", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/gpa39EJg/index.m3u8" },
+            { name: "And TV HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/MqWgTf6g/index.m3u8" },
+            { name: "And Pictures HD", category: "Entertainment", logo: "", url: "https://tvsen3.aynaott.com/jzT482XQ/index.m3u8" },
+            { name: "Colors Infinity HD", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/6Jn9Mu5W/index.m3u8" },
+            { name: "And Flix HD", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/fFb49zL7/index.m3u8" },
+            { name: "Zee Cinema HD", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/MQKL9Zyv/index.m3u8" },
+            { name: "Axn HD", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/Vh6939Cy/index.m3u8" },
+            { name: "Star Life HD", category: "Entertainment", logo: "", url: "https://tvsen1.aynaott.com/yy6g4mAD/index.m3u8" },
+
+            // SPORTS CATEGORY
+            { name: "T Sports HD", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/yNdxRrA6/index.m3u8" },
+            { name: "beIN SPORTS", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/T3RTVZEP/index.m3u8" },
+            { name: "DD Sports", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/jL2KFd2T/index.m3u8" },
+            { name: "Sports 18", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/BvZYs75S/index.m3u8" },
+            { name: "Star Sports 1 HD", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/Js8p7ju5/index.m3u8" },
+            { name: "Star Sports 2 HD", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/hdTr8MfN/index.m3u8" },
+            { name: "Star Sport Select 1", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/T8fPhrJn/index.m3u8" },
+            { name: "Star Sport Select 2", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/K8zpAR5u/index.m3u8" },
+            { name: "ESPN", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/Q8LRawXP/index.m3u8" },
+            { name: "Willow HD TV", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/YtTb4EQt/index.m3u8" },
+            { name: "Sony Sports 1", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/vGUkZf5e/index.m3u8" },
+            { name: "Sony Sports 2", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/4hSKcKqs/index.m3u8" },
+            { name: "A Sports", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/yn6gezcX/index.m3u8" },
+            { name: "Golf Channel", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/APKc7EfX/index.m3u8" },
+            { name: "PTV Sports", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/mRaf5ZGc/index.m3u8" },
+            { name: "Geo Super HD", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/YRudVm6C/index.m3u8" },
+            { name: "Astro Cricket HD", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/Ga7MFDwz/index.m3u8" },
+            { name: "NFL Network", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/ULV8LeGc/index.m3u8" },
+            { name: "SSC Sports 1 HD", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/BaSnc8WG/index.m3u8" },
+            { name: "SSC Extra 1 HD", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/ah4TxDZS/index.m3u8" },
+            { name: "NBA TV", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/n7mwSM2a/index.m3u8" },
+            { name: "TNT Sports 1", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/CGvyM5k9/index.m3u8" },
+            { name: "Fox Sports 1", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/BGvNK4X8/index.m3u8" },
+            { name: "Fox Sports 2", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/uUpT4aaC/index.m3u8" },
+            { name: "TSN 1", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/jEcpbv3J/index.m3u8" },
+            { name: "TSN 2", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/pmGAR838/index.m3u8" },
+            { name: "TSN 3", category: "Sports", logo: "", url: "https://tvsen3.aynaott.com/uZG9Xg2T/index.m3u8" },
+            { name: "Super Laliga HD", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/ZVb96q4Y/index.m3u8" },
+            { name: "Super Cricket HD 1", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/XAeTLa9q/index.m3u8" },
+            { name: "Super Premier HD", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/uVgm8JDn/index.m3u8" },
+            { name: "SUPER SPORTS PSL", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/9gyragX9/index.m3u8" },
+            { name: "TNT SPORTS 1 HD", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/nxdGcw4N/index.m3u8" },
+            { name: "Sky Sports Cricket HD", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/secJ8jyQ/index.m3u8" },
+            { name: "Sky Sports GOLF", category: "Sports", logo: "", url: "https://tvsen1.aynaott.com/EG4wVcGq/index.m3u8" },
+
+            // NEWS CATEGORY
+            { name: "Somoy News TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/ada5N5zp/index.m3u8" },
+            { name: "ATN News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/Sh4X3dpt/index.m3u8" },
+            { name: "Independent TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/k7T9S9r7/index.m3u8" },
+            { name: "DBC News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/J8UG6Q9n/index.m3u8" },
+            { name: "Ekhon TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/FXpaQ9Uk/index.m3u8" },
+            { name: "News 24 BD", category: "News", logo: "", url: "https://tvsen3.aynaott.com/7WD8LUYn/index.m3u8" },
+            { name: "Ekattor TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/4CMA85fX/index.m3u8" },
+            { name: "Jamuna TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/hH6FxJn2/index.m3u8" },
+            { name: "BTV World", category: "News", logo: "", url: "https://tvsen3.aynaott.com/qCnQ85gq/index.m3u8" },
+            { name: "BTV National", category: "News", logo: "", url: "https://tvsen3.aynaott.com/9RnM9n8U/index.m3u8" },
+            { name: "BTV News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/hGQzGzs2/index.m3u8" },
+            { name: "BTV CTG", category: "News", logo: "", url: "https://tvsen3.aynaott.com/k62yJJXV/index.m3u8" },
+            { name: "BBC News", category: "News", logo: "", url: "https://tvsen1.aynaott.com/shn6jGTk/index.m3u8" },
+            { name: "CNN", category: "News", logo: "", url: "https://tvsen1.aynaott.com/gHzY7yQJ/index.m3u8" },
+            { name: "Aljazeera News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/wuCNAA2w/index.m3u8" },
+            { name: "News Time Bangla", category: "News", logo: "", url: "https://tvsen3.aynaott.com/BXS5Xnub/index.m3u8" },
+            { name: "ANB News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/7fFnMMqg/index.m3u8" },
+            { name: "News 1 India", category: "News", logo: "", url: "https://tvsen3.aynaott.com/sfH39vMg/index.m3u8" },
+            { name: "Republic TV Bharat", category: "News", logo: "", url: "https://tvsen3.aynaott.com/5KrScma9/index.m3u8" },
+            { name: "Sadhna Prime News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/P2hjvFHV/index.m3u8" },
+            { name: "TV9 Bangla", category: "News", logo: "", url: "https://tvsen3.aynaott.com/9vYU8nVp/index.m3u8" },
+            { name: "APN", category: "News", logo: "", url: "https://tvsen3.aynaott.com/CUZmWh8s/index.m3u8" },
+            { name: "DW", category: "News", logo: "", url: "https://tvsen3.aynaott.com/T892Neny/index.m3u8" },
+            { name: "NHK World Japan", category: "News", logo: "", url: "https://tvsen3.aynaott.com/X4cYqvjP/index.m3u8" },
+            { name: "India TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/NE57nU74/index.m3u8" },
+            { name: "TRT World", category: "News", logo: "", url: "https://tvsen3.aynaott.com/z9TKAFTA/index.m3u8" },
+            { name: "ZEE News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/MU4xxnMk/index.m3u8" },
+            { name: "NTV Itahari", category: "News", logo: "", url: "https://tvsen3.aynaott.com/r8Y5ZBFG/index.m3u8" },
+            { name: "Bloomberg TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/Q9cCm7cb/index.m3u8" },
+            { name: "News India 24x7", category: "News", logo: "", url: "https://tvsen3.aynaott.com/vG7Wpj7e/index.m3u8" },
+            { name: "Republic Bangla", category: "News", logo: "", url: "https://tvsen3.aynaott.com/y76rRh9G/index.m3u8" },
+            { name: "TV9 Bharatvarsh", category: "News", logo: "", url: "https://tvsen3.aynaott.com/v9NqPxRd/index.m3u8" },
+            { name: "ZEE 24 Ghanta", category: "News", logo: "", url: "https://tvsen3.aynaott.com/xktTm5Um/index.m3u8" },
+            { name: "Kolkata TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/eLYv8rsE/index.m3u8" },
+            { name: "GB NEWS", category: "News", logo: "", url: "https://tvsen3.aynaott.com/gFFQLEb5/index.m3u8" },
+            { name: "WEATHER CHANNEL", category: "News", logo: "", url: "https://tvsen3.aynaott.com/uqXdx9CE/index.m3u8" },
+            { name: "CNBC TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/SdPpFj9c/index.m3u8" },
+            { name: "CP 24", category: "News", logo: "", url: "https://tvsen3.aynaott.com/9aePFAQ3/index.m3u8" },
+            { name: "MSNBC News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/Uk9znvSk/index.m3u8" },
+            { name: "ABC NEWS", category: "News", logo: "", url: "https://tvsen3.aynaott.com/Hem3H53j/index.m3u8" },
+            { name: "Sky News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/Ldf2LEuy/index.m3u8" },
+            { name: "Accu weather", category: "News", logo: "", url: "https://tvsen3.aynaott.com/xzvyeb3M/index.m3u8" },
+            { name: "Fox News", category: "News", logo: "", url: "https://tvsen3.aynaott.com/vt2EvvgM/index.m3u8" },
+            { name: "Fox 5", category: "News", logo: "", url: "https://tvsen3.aynaott.com/ErqEh62w/index.m3u8" },
+            { name: "Hindi Khabar", category: "News", logo: "", url: "https://tvsen3.aynaott.com/M2U8NZEA/index.m3u8" },
+            { name: "News Nation", category: "News", logo: "", url: "https://tvsen3.aynaott.com/qEx9vneS/index.m3u8" },
+            { name: "Taaza TV", category: "News", logo: "", url: "https://tvsen3.aynaott.com/yRMLky2j/index.m3u8" },
+            { name: "Assam Talks", category: "News", logo: "", url: "https://tvsen3.aynaott.com/4GtdC4HA/index.m3u8" },
+            { name: "Bharat Samachar", category: "News", logo: "", url: "https://tvsen3.aynaott.com/m94BZDYb/index.m3u8" },
+            { name: "WION", category: "News", logo: "", url: "https://tvsen3.aynaott.com/Z225DCym/index.m3u8" },
+            { name: "Cgtn News", category: "News", logo: "", url: "https://tvsen1.aynaott.com/TAxm7z7F/index.m3u8" },
+
+            // KIDS CATEGORY
+            { name: "Duronto TV", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/AQTJDJJ9/index.m3u8" },
+            { name: "Disney Channel", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/9wTPz8jg/index.m3u8" },
+            { name: "Disney Junior", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/aM7qKqq7/index.m3u8" },
+            { name: "Nick Jr", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/LqCU7kXU/index.m3u8" },
+            { name: "Cartoon Network", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/8ebrVk77/index.m3u8" },
+            { name: "Disney XD", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/f4PYHDTF/index.m3u8" },
+            { name: "Family JR", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/25FZdZrX/index.m3u8" },
+            { name: "Nicktoons", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/rXbLN7zC/index.m3u8" },
+            { name: "PBS Kids", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/Z7qUWUbM/index.m3u8" },
+            { name: "Teen Nick", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/2rqjhQmA/index.m3u8" },
+            { name: "Universal Kids.", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/XLBvnC6F/index.m3u8" },
+            { name: "YTV", category: "Kids", logo: "", url: "https://tvsen3.aynaott.com/uYpFg3RV/index.m3u8" },
+
+            // ISLAMIC CATEGORY
+            { name: "Deen TV", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/TJcnZW3U/index.m3u8" },
+            { name: "Quran Live", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/JtCBdD4E/index.m3u8" },
+            { name: "Islam Channel", category: "Islamic", logo: "", url: "https://tvsen1.aynaott.com/bB3A5dyq/index.m3u8" },
+            { name: "MADANI TV", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/z24qLsqV/index.m3u8" },
+            { name: "Peace TV English HD", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/2wYLhCra/index.m3u8" },
+            { name: "Peace TV Bangla HD", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/RxGdpyu5/index.m3u8" },
+            { name: "Peace TV Urdu HD", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/2tuE2XAs/index.m3u8" },
+            { name: "Eman Channel", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/WHy6ffXz/index.m3u8" },
+            { name: "IQRA Bangla TV", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/EuEy5mBW/index.m3u8" },
+            { name: "SUNNAH", category: "Islamic", logo: "", url: "https://tvsen3.aynaott.com/6WVezYtV/index.m3u8" },
+
+            // MUSIC CATEGORY
+            { name: "Sangeet Bangla", category: "Music", logo: "", url: "https://tvsen3.aynaott.com/4A5UsfbU/index.m3u8" },
+            { name: "9XM", category: "Music", logo: "", url: "https://tvsen3.aynaott.com/qCrLpS9v/index.m3u8" },
+            { name: "Mastiii Music", category: "Music", logo: "", url: "https://tvsen3.aynaott.com/er7jmpVF/index.m3u8" },
+            { name: "Dhoom Music Bangla", category: "Music", logo: "", url: "https://tvsen3.aynaott.com/ZdVbmd4E/index.m3u8" },
+            { name: "Revolt", category: "Music", logo: "", url: "https://tvsen3.aynaott.com/XyZT8vCg/index.m3u8" },
+            { name: "MTV", category: "Music", logo: "", url: "https://tvsen3.aynaott.com/jKJg29sc/index.m3u8" },
+            { name: "B4U Music", category: "Music", logo: "", url: "https://tvsen3.aynaott.com/8m7Vmh3K/index.m3u8" }
+        ];
+
+        let currentCategory = 'All';
+        let player = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Updated Player Configuration to allow exact auto scaling & full control layout
+            player = videojs('live-player', {
+                fluid: false, // Turned off Tailwind fluid breaking logic
+                responsive: true,
+                liveui: true,
+                playbackRates: [0.5, 1, 1.5, 2]
+            });
+            renderChannels();
+            document.getElementById('search-box').addEventListener('input', renderChannels);
+        });
+
+        function renderChannels() {
+            const container = document.getElementById('channel-list');
+            const searchQuery = document.getElementById('search-box').value.toLowerCase();
+            container.innerHTML = '';
+
+            const filtered = channels.filter(ch => {
+                const matchesCategory = (currentCategory === 'All' || ch.category === currentCategory);
+                const matchesSearch = ch.name.toLowerCase().includes(searchQuery);
+                return matchesCategory && matchesSearch;
+            });
+
+            if(filtered.length === 0) {
+                container.innerHTML = `<p class="text-xs text-zinc-600 text-center py-8">No channels discovered</p>`;
+                return;
+            }
+
+            filtered.forEach(ch => {
+                const words = ch.name.trim().split(/\s+/);
+                const prefix = words.length > 1 ? (words[0][0] + words[1][0]).toUpperCase() : words[0][0].toUpperCase();
+
+                const item = document.createElement('div');
+                item.className = "flex items-center gap-3 p-2 rounded-md bg-[#1c1c1c] border border-zinc-800/40 hover:bg-[#262626] hover:border-zinc-700 cursor-pointer transition-all group shrink-0 flex-nowrap w-full min-w-0";
+                
+                item.onclick = () => playStream(ch.url, ch.name, ch.category);
+
+                let logoHtml = '';
+                if(ch.logo && ch.logo !== "") {
+                    logoHtml = `<img src="${ch.logo}" alt="${ch.name}" class="w-8 h-8 rounded object-contain shrink-0 bg-zinc-900 border border-zinc-800"/>`;
+                } else {
+                    logoHtml = `
+                        <div class="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center text-zinc-300 font-bold text-xs tracking-wider group-hover:bg-red-600 group-hover:text-white transition-colors shrink-0">
+                            ${prefix.substring(0, 2)}
+                        </div>
+                    `;
+                }
+
+                item.innerHTML = `
+                    ${logoHtml}
+                    <div class="overflow-hidden flex-grow min-w-0 pr-1">
+                        <h4 class="text-xs font-medium text-zinc-200 group-hover:text-white truncate" title="${ch.name}">${ch.name}</h4>
+                        <span class="text-[10px] text-zinc-500 block mt-0.5">${ch.category}</span>
+                    </div>
+                    <div class="text-[10px] text-zinc-600 opacity-0 group-hover:opacity-100 pr-1 transition-opacity shrink-0">
+                        ▶
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function playStream(url, name, category) {
+            document.getElementById('player-placeholder').classList.add('hidden');
+            document.getElementById('video-wrapper').classList.remove('hidden');
+            
+            document.getElementById('current-active-channel').textContent = name;
+            document.getElementById('current-active-category').textContent = category + " Network Active";
+
+            player.src({
+                src: url,
+                type: 'application/x-mpegURL'
+            });
+            player.ready(() => {
+                player.play().catch(error => {
+                    console.log("Streaming block engine intercept: ", error);
+                });
+            });
+        }
+
+        function filterCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                if(btn.textContent === cat || (cat === 'All' && btn.textContent === 'All Channel')) {
+                    btn.className = "cat-btn px-3 py-1.5 rounded bg-zinc-100 text-black font-semibold cursor-pointer";
+                } else {
+                    btn.className = "cat-btn px-3 py-1.5 rounded bg-[#212121] text-zinc-400 hover:bg-[#2b2b2b] cursor-pointer";
+                }
+            });
+            renderChannels();
+        }
+    </script>
+</body>
+</html>
